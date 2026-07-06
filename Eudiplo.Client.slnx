@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Eudiplo.Client/Eudiplo.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Eudiplo.Client.Tests/Eudiplo.Client.Tests.csproj" />
+  </Folder>
+</Solution>

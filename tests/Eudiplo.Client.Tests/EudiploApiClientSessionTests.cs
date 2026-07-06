@@ -98,4 +98,46 @@ public class EudiploApiClientSessionTests
 
         Assert.Empty(await client.GetSessionLogsAsync("missing"));
     }
+
+    [Fact]
+    public async Task SubscribeToSessionEventsAsync_YieldsEachDataLine()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, "data: {\"status\":\"pending\"}\n\ndata: {\"status\":\"issued\"}\n\n");
+
+        var events = new List<string>();
+        await foreach (var e in client.SubscribeToSessionEventsAsync("s1"))
+            events.Add(e);
+
+        Assert.Equal(["{\"status\":\"pending\"}", "{\"status\":\"issued\"}"], events);
+        Assert.Equal("/api/session/s1/events", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task SubscribeToSessionEventsAsync_IgnoresNonDataLines()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, "event: ping\ndata: hello\n\n");
+
+        var events = new List<string>();
+        await foreach (var e in client.SubscribeToSessionEventsAsync("s1"))
+            events.Add(e);
+
+        Assert.Equal(["hello"], events);
+    }
+
+    [Fact]
+    public async Task SubscribeToSessionEventsAsync_NonSuccessStatus_Throws()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.NotFound);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in client.SubscribeToSessionEventsAsync("missing")) { }
+        });
+    }
 }

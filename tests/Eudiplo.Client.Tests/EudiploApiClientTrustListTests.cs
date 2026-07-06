@@ -184,4 +184,62 @@ public class EudiploApiClientTrustListTests
         Assert.Equal(HttpMethod.Put, handler.Requests[1].Method);
         Assert.Equal("/api/trust-list/tl-1", handler.Requests[1].RequestUri!.AbsolutePath);
     }
+
+    [Fact]
+    public async Task ExportTrustListAsync_Success_ReturnsBody()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """{"id":"tl-1","entries":[]}""");
+
+        var result = await client.ExportTrustListAsync("tl-1");
+
+        Assert.Contains("entries", result);
+        Assert.Equal("/api/trust-list/tl-1/export", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ExportTrustListAsync_NotFound_ReturnsNull()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.NotFound);
+
+        Assert.Null(await client.ExportTrustListAsync("missing"));
+    }
+
+    [Fact]
+    public async Task GetTrustListVersionsAsync_ParsesList()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """[{"versionId":"v1"},{"versionId":"v2"}]""");
+
+        var result = await client.GetTrustListVersionsAsync("tl-1");
+
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task GetTrustListVersionAsync_Found_ReturnsElement()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """{"versionId":"v1"}""");
+
+        var result = await client.GetTrustListVersionAsync("tl-1", "v1");
+
+        Assert.NotNull(result);
+        Assert.Equal("/api/trust-list/tl-1/versions/v1", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task GetTrustListVersionAsync_NotFound_ReturnsNull()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.NotFound);
+
+        Assert.Null(await client.GetTrustListVersionAsync("tl-1", "missing"));
+    }
 }

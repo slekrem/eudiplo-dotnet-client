@@ -92,4 +92,19 @@ public partial class EudiploApiClient(HttpClient http, string clientId, string c
         }
         return resp;
     }
+
+    /// <summary>Parses a EUDIPLO list response into a flat array of elements — EUDIPLO list
+    /// endpoints return either a bare JSON array or a <c>{"items": [...]}</c> wrapper depending
+    /// on the endpoint; this normalizes both shapes for every <c>GetXxxAsync</c> list method.</summary>
+    private static IReadOnlyList<JsonElement> ParseJsonArray(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var arr = root.ValueKind == JsonValueKind.Array ? root
+            : root.TryGetProperty("items", out var it) ? it : default;
+        if (arr.ValueKind != JsonValueKind.Array) return Array.Empty<JsonElement>();
+        var list = new List<JsonElement>();
+        foreach (var e in arr.EnumerateArray()) list.Add(e.Clone());
+        return list;
+    }
 }

@@ -17,14 +17,7 @@ public partial class EudiploApiClient
         using var resp = await SendWithAuthAsync(
             () => new HttpRequestMessage(HttpMethod.Get, "/api/tenant"), ct);
         if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var root = doc.RootElement;
-        var arr = root.ValueKind == JsonValueKind.Array ? root
-            : root.TryGetProperty("items", out var it) ? it : default;
-        if (arr.ValueKind != JsonValueKind.Array) return Array.Empty<JsonElement>();
-        var list = new List<JsonElement>();
-        foreach (var e in arr.EnumerateArray()) list.Add(e.Clone());
-        return list;
+        return ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
     }
 
     /// <summary>Creates a new tenant (POST /api/tenant). If the body includes <c>roles</c>,
@@ -40,6 +33,30 @@ public partial class EudiploApiClient
         var text = await resp.Content.ReadAsStringAsync(ct);
         if (!resp.IsSuccessStatusCode)
             throw new InvalidOperationException($"EUDIPLO tenant create: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
+    /// <summary>Reads a single tenant (raw). null = not found.</summary>
+    public async Task<JsonElement?> GetTenantAsync(string id, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"/api/tenant/{id}"), ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.Clone();
+    }
+
+    /// <summary>Updates a tenant (PATCH /api/tenant/{id}).</summary>
+    public async Task<string> UpdateTenantAsync(string id, string json, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Patch, $"/api/tenant/{id}")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO tenant update: HTTP {(int)resp.StatusCode} {text}");
         return text;
     }
 

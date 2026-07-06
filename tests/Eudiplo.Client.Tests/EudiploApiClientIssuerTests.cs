@@ -65,6 +65,52 @@ public class EudiploApiClientIssuerTests
     }
 
     [Fact]
+    public async Task GetCredentialConfigsAsync_ParsesList()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """[{"id":"cfg-1"},{"id":"cfg-2"}]""");
+
+        var result = await client.GetCredentialConfigsAsync();
+
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task GetCredentialConfigAsync_NotFound_ReturnsNull()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.NotFound);
+
+        Assert.Null(await client.GetCredentialConfigAsync("missing"));
+    }
+
+    [Fact]
+    public async Task PatchCredentialConfigAsync_Success_SendsPatch()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """{"id":"cfg-1"}""");
+
+        await client.PatchCredentialConfigAsync("cfg-1", """{"display":{}}""");
+
+        Assert.Equal(HttpMethod.Patch, handler.Requests[1].Method);
+        Assert.Equal("/api/issuer/credentials/cfg-1", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task PatchCredentialConfigAsync_Failure_Throws()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.BadRequest, """{"message":"invalid"}""");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.PatchCredentialConfigAsync("cfg-1", "{}"));
+    }
+
+    [Fact]
     public async Task GetIssuerConfigJsonAsync_NonSuccessStatus_ReturnsNull()
     {
         var (client, handler) = TestClientFactory.Create();

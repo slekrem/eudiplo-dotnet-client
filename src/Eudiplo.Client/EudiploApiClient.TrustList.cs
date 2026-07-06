@@ -19,14 +19,8 @@ public partial class EudiploApiClient
             () => new HttpRequestMessage(HttpMethod.Get, "/api/trust-list"), ct);
         if (!resp.IsSuccessStatusCode) return Array.Empty<EudiploTrustList>();
 
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var root = doc.RootElement;
-        var arr = root.ValueKind == JsonValueKind.Array ? root
-            : root.TryGetProperty("items", out var it) ? it : default;
-        if (arr.ValueKind != JsonValueKind.Array) return Array.Empty<EudiploTrustList>();
-
         var list = new List<EudiploTrustList>();
-        foreach (var e in arr.EnumerateArray())
+        foreach (var e in ParseJsonArray(await resp.Content.ReadAsStringAsync(ct)))
         {
             if (!e.TryGetProperty("id", out var i) || i.GetString() is not { Length: > 0 } id) continue;
             var desc   = e.TryGetProperty("description", out var d) ? d.GetString() : null;
@@ -108,6 +102,36 @@ public partial class EudiploApiClient
         var text = await resp.Content.ReadAsStringAsync(ct);
         if (!resp.IsSuccessStatusCode)
             throw new InvalidOperationException($"EUDIPLO trust-list update: HTTP {(int)resp.StatusCode} {text}");
+    }
+
+    /// <summary>Exports a trust list (GET /api/trust-list/{id}/export) in a portable format —
+    /// for migrating a trust list between EUDIPLO instances or backing it up. null = not found.</summary>
+    public async Task<string?> ExportTrustListAsync(string id, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"/api/trust-list/{id}/export"), ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadAsStringAsync(ct);
+    }
+
+    /// <summary>Lists the historical versions of a trust list (GET /api/trust-list/{id}/versions).</summary>
+    public async Task<IReadOnlyList<JsonElement>> GetTrustListVersionsAsync(string id, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"/api/trust-list/{id}/versions"), ct);
+        if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
+        return ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
+    }
+
+    /// <summary>Reads a specific historical version of a trust list
+    /// (GET /api/trust-list/{id}/versions/{versionId}). null = not found.</summary>
+    public async Task<JsonElement?> GetTrustListVersionAsync(string id, string versionId, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"/api/trust-list/{id}/versions/{versionId}"), ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.Clone();
     }
 }
 

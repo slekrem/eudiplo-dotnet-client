@@ -122,4 +122,74 @@ public class EudiploApiClientVerifierConfigTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => client.ReissueRegistrationCertificateAsync("cfg-1"));
     }
+
+    [Fact]
+    public async Task ResolveIssuerMetadataAsync_Success_ReturnsBody()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """{"issuer":"https://issuer.example"}""");
+
+        var result = await client.ResolveIssuerMetadataAsync("""{"url":"https://issuer.example"}""");
+
+        Assert.Contains("issuer.example", result);
+        Assert.Equal("/api/verifier/config/issuer-metadata/resolve", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ResolveIssuerMetadataAsync_Failure_Throws()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.BadRequest, """{"message":"unreachable"}""");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.ResolveIssuerMetadataAsync("{}"));
+    }
+
+    [Fact]
+    public async Task ResolveSchemaMetadataAsync_Success_ReturnsBody()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """{"vct":"my-credential"}""");
+
+        var result = await client.ResolveSchemaMetadataAsync("""{"id":"schema-1"}""");
+
+        Assert.Contains("my-credential", result);
+        Assert.Equal("/api/verifier/config/schema-metadata/resolve", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ResolveSchemaMetadataAsync_Failure_Throws()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.NotFound, """{"message":"not found"}""");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.ResolveSchemaMetadataAsync("{}"));
+    }
+
+    [Fact]
+    public async Task GetSchemaMetadataCatalogAsync_ParsesList()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """[{"id":"s1"},{"id":"s2"}]""");
+
+        var result = await client.GetSchemaMetadataCatalogAsync();
+
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task GetSchemaMetadataCatalogAsync_NonSuccessStatus_ReturnsEmpty()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.InternalServerError);
+
+        Assert.Empty(await client.GetSchemaMetadataCatalogAsync());
+    }
 }

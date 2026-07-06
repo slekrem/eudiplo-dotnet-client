@@ -17,14 +17,7 @@ public partial class EudiploApiClient
         using var resp = await SendWithAuthAsync(
             () => new HttpRequestMessage(HttpMethod.Get, "/api/client"), ct);
         if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var root = doc.RootElement;
-        var arr = root.ValueKind == JsonValueKind.Array ? root
-            : root.TryGetProperty("items", out var it) ? it : default;
-        if (arr.ValueKind != JsonValueKind.Array) return Array.Empty<JsonElement>();
-        var list = new List<JsonElement>();
-        foreach (var e in arr.EnumerateArray()) list.Add(e.Clone());
-        return list;
+        return ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
     }
 
     /// <summary>Reads a single client (raw, without secret). null = not found.</summary>

@@ -19,14 +19,9 @@ public partial class EudiploApiClient
         using var resp = await SendWithAuthAsync(
             () => new HttpRequestMessage(HttpMethod.Get, "/api/key-chain"), ct);
         if (!resp.IsSuccessStatusCode) return Array.Empty<(string, string)>();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var root = doc.RootElement;
-        var arr = root.ValueKind == JsonValueKind.Array ? root
-            : root.TryGetProperty("items", out var it) ? it : default;
-        if (arr.ValueKind != JsonValueKind.Array) return Array.Empty<(string, string)>();
 
         var list = new List<(string, string)>();
-        foreach (var e in arr.EnumerateArray())
+        foreach (var e in ParseJsonArray(await resp.Content.ReadAsStringAsync(ct)))
             if (e.TryGetProperty("usageType", out var u) && u.GetString() == "access"
                 && e.TryGetProperty("id", out var i) && i.GetString() is { Length: > 0 } id)
                 list.Add((id, e.TryGetProperty("description", out var d) ? d.GetString() ?? id : id));
@@ -73,18 +68,125 @@ public partial class EudiploApiClient
         using var resp = await SendWithAuthAsync(
             () => new HttpRequestMessage(HttpMethod.Get, "/api/key-chain"), ct);
         if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var root = doc.RootElement;
-        var arr = root.ValueKind == JsonValueKind.Array ? root
-            : root.TryGetProperty("items", out var it) ? it : default;
-        if (arr.ValueKind != JsonValueKind.Array) return Array.Empty<JsonElement>();
+        var all = ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
+        if (usageType is null) return all;
+        return all.Where(e => e.TryGetProperty("usageType", out var u) && u.GetString() == usageType).ToList();
+    }
 
-        var list = new List<JsonElement>();
-        foreach (var e in arr.EnumerateArray())
-        {
-            if (usageType is not null && (!e.TryGetProperty("usageType", out var u) || u.GetString() != usageType)) continue;
-            list.Add(e.Clone());
-        }
-        return list;
+    /// <summary>Reads a single key-chain by id (raw, public fields only — no x/y). null = not found.</summary>
+    public async Task<JsonElement?> GetKeyChainAsync(string id, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"/api/key-chain/{id}"), ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.Clone();
+    }
+
+    /// <summary>Imports an existing key-chain (POST /api/key-chain/import) — the counterpart to
+    /// <see cref="ExportKeyChainAsync"/>, for migrating a key-chain between EUDIPLO instances or
+    /// restoring one from a backup. <paramref name="json"/> is the export-format payload
+    /// (including the private <c>d</c> component).</summary>
+    public async Task<string> ImportKeyChainAsync(string json, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, "/api/key-chain/import")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO key-chain import: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
+    /// <summary>Updates a key-chain's metadata and/or rotation policy (PUT /api/key-chain/{id}).</summary>
+    public async Task<string> UpdateKeyChainAsync(string id, string json, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Put, $"/api/key-chain/{id}")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO key-chain update: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
+    /// <summary>Deletes a key-chain (DELETE /api/key-chain/{id}).</summary>
+    public async Task DeleteKeyChainAsync(string id, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Delete, $"/api/key-chain/{id}"), ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO key-chain delete: HTTP {(int)resp.StatusCode} {text}");
+    }
+
+    /// <summary>Rotates the signing key inside a key-chain (POST /api/key-chain/{id}/rotate) —
+    /// generates a new key pair for the same key-chain id, per its configured rotation policy.</summary>
+    public async Task<string> RotateKeyChainAsync(string id, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, $"/api/key-chain/{id}/rotate"), ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO key-chain rotate: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
+    /// <summary>Lists available KMS (Key Management Service) providers (GET /api/key-chain/providers)
+    /// that key-chains can be backed by (e.g. local, AWS KMS, Azure Key Vault, PKCS#11).</summary>
+    public async Task<IReadOnlyList<JsonElement>> GetKmsProvidersAsync(CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, "/api/key-chain/providers"), ct);
+        if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
+        return ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
+    }
+
+    /// <summary>Health-probes every configured KMS provider (GET /api/key-chain/providers/health).</summary>
+    public async Task<string?> GetKmsProviderHealthAsync(CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, "/api/key-chain/providers/health"), ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadAsStringAsync(ct);
+    }
+
+    /// <summary>Reads the tenant's KMS provider configuration (GET /api/key-chain/providers/config).
+    /// null = none configured (falls back to the default/local provider).</summary>
+    public async Task<string?> GetKmsProviderConfigAsync(CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, "/api/key-chain/providers/config"), ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadAsStringAsync(ct);
+    }
+
+    /// <summary>Creates or replaces the tenant's KMS provider configuration
+    /// (PUT /api/key-chain/providers/config).</summary>
+    public async Task<string> SetKmsProviderConfigAsync(string json, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Put, "/api/key-chain/providers/config")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO KMS provider config set: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
+    /// <summary>Deletes the tenant's KMS provider configuration, reverting to the default
+    /// (DELETE /api/key-chain/providers/config; idempotent — 404 is ignored).</summary>
+    public async Task DeleteKmsProviderConfigAsync(CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Delete, "/api/key-chain/providers/config"), ct);
+        if (!resp.IsSuccessStatusCode && resp.StatusCode != System.Net.HttpStatusCode.NotFound)
+            throw new InvalidOperationException($"EUDIPLO KMS provider config delete: HTTP {(int)resp.StatusCode}");
     }
 }

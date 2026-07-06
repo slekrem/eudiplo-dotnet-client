@@ -66,4 +66,55 @@ public class EudiploApiClientTenantTests
 
         Assert.Null(exception);
     }
+
+    [Fact]
+    public async Task GetTenantAsync_Found_ReturnsElement()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """{"id":"t1","name":"Tenant One"}""");
+
+        var result = await client.GetTenantAsync("t1");
+
+        Assert.NotNull(result);
+        Assert.Equal("t1", result.Value.GetProperty("id").GetString());
+        Assert.Equal("/api/tenant/t1", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task GetTenantAsync_NotFound_ReturnsNull()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.NotFound);
+
+        var result = await client.GetTenantAsync("missing");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_Success_SendsPatchToExpectedPath()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.OK, """{"id":"t1","name":"Renamed"}""");
+
+        var result = await client.UpdateTenantAsync("t1", """{"name":"Renamed"}""");
+
+        Assert.Contains("Renamed", result);
+        Assert.Equal(HttpMethod.Patch, handler.Requests[1].Method);
+        Assert.Equal("/api/tenant/t1", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_Failure_Throws()
+    {
+        var (client, handler) = TestClientFactory.Create();
+        handler.EnqueueToken();
+        handler.Enqueue(HttpStatusCode.NotFound, """{"message":"not found"}""");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.UpdateTenantAsync("missing", "{}"));
+    }
 }

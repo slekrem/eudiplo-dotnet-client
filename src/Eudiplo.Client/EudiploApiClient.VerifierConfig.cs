@@ -61,14 +61,7 @@ public partial class EudiploApiClient
         using var resp = await SendWithAuthAsync(
             () => new HttpRequestMessage(HttpMethod.Get, "/api/verifier/config"), ct);
         if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var root = doc.RootElement;
-        var arr = root.ValueKind == JsonValueKind.Array ? root
-            : root.TryGetProperty("items", out var it) ? it : default;
-        if (arr.ValueKind != JsonValueKind.Array) return Array.Empty<JsonElement>();
-        var list = new List<JsonElement>();
-        foreach (var e in arr.EnumerateArray()) list.Add(e.Clone());
-        return list;
+        return ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
     }
 
     /// <summary>Forces re-resolution of a config's registration certificate against the
@@ -80,5 +73,48 @@ public partial class EudiploApiClient
         var text = await resp.Content.ReadAsStringAsync(ct);
         if (!resp.IsSuccessStatusCode)
             throw new InvalidOperationException($"EUDIPLO registration-cert reissue: HTTP {(int)resp.StatusCode} {text}");
+    }
+
+    /// <summary>Resolves external issuer metadata (POST /api/verifier/config/issuer-metadata/resolve)
+    /// — used when composing a presentation config that trusts a specific external issuer, to look
+    /// up that issuer's metadata (e.g. by URL) instead of entering it by hand.</summary>
+    public async Task<string> ResolveIssuerMetadataAsync(string json, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, "/api/verifier/config/issuer-metadata/resolve")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO issuer-metadata resolve: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
+    /// <summary>Resolves external schema metadata (POST /api/verifier/config/schema-metadata/resolve)
+    /// — looks up a published schema (e.g. by its registrar-assigned id/URL) for use when composing
+    /// a presentation config's requested claims.</summary>
+    public async Task<string> ResolveSchemaMetadataAsync(string json, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, "/api/verifier/config/schema-metadata/resolve")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO schema-metadata resolve: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
+    /// <summary>Lists schema metadata available from the registrar's catalog
+    /// (GET /api/verifier/config/schema-metadata/catalog) — for picking an existing published
+    /// schema when composing a presentation config, instead of resolving one by hand.</summary>
+    public async Task<IReadOnlyList<JsonElement>> GetSchemaMetadataCatalogAsync(CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, "/api/verifier/config/schema-metadata/catalog"), ct);
+        if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
+        return ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
     }
 }

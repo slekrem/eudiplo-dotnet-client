@@ -84,6 +84,41 @@ public partial class EudiploApiClient
         return await resp.Content.ReadAsStringAsync(ct);
     }
 
+    /// <summary>Lists all credential configs of the tenant (GET /api/issuer/credentials).</summary>
+    public async Task<IReadOnlyList<JsonElement>> GetCredentialConfigsAsync(CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, "/api/issuer/credentials"), ct);
+        if (!resp.IsSuccessStatusCode) return Array.Empty<JsonElement>();
+        return ParseJsonArray(await resp.Content.ReadAsStringAsync(ct));
+    }
+
+    /// <summary>Reads a single credential config (GET /api/issuer/credentials/{id}). null = not found.</summary>
+    public async Task<JsonElement?> GetCredentialConfigAsync(string id, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"/api/issuer/credentials/{id}"), ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.Clone();
+    }
+
+    /// <summary>Partially updates a credential config (PATCH /api/issuer/credentials/{id}) — only
+    /// the fields you send are changed, unlike <see cref="UpsertCredentialConfigAsync"/> which
+    /// replaces the config entirely. Prefer this for small, additive edits.</summary>
+    public async Task<string> PatchCredentialConfigAsync(string id, string json, CancellationToken ct = default)
+    {
+        using var resp = await SendWithAuthAsync(
+            () => new HttpRequestMessage(HttpMethod.Patch, $"/api/issuer/credentials/{id}")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            }, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"EUDIPLO credential-config patch: HTTP {(int)resp.StatusCode} {text}");
+        return text;
+    }
+
     /// <summary>Writes the issuer config (POST /api/issuer/config — upsert). EUDIPLO merges
     /// server-side with the existing config (fields you don't send are left as-is, there is no
     /// reset to defaults) — sending the full body is still correct because tenantId/createdAt/

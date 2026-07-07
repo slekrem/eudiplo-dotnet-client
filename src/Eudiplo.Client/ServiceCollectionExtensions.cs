@@ -36,7 +36,13 @@ public static class ServiceCollectionExtensions
             var opts = sp.GetRequiredService<IOptions<EudiploClientOptions>>().Value;
             if (!string.IsNullOrWhiteSpace(opts.BaseUrl))
                 c.BaseAddress = new Uri(opts.BaseUrl);
-            c.Timeout = TimeSpan.FromSeconds(opts.HttpTimeoutSeconds);
+            // Deliberately infinite, not opts.HttpTimeoutSeconds — EudiploApiClient enforces
+            // that per call itself (SendWithAuthAsync), so it can exempt
+            // SubscribeToSessionEventsAsync's long-lived stream reads from it. An
+            // HttpClient-level Timeout would apply to those too (it covers the whole
+            // request, including reads on the response stream long after SendAsync returns),
+            // aborting any real-world SSE subscription almost immediately.
+            c.Timeout = Timeout.InfiniteTimeSpan;
         });
 
         // Only register an injectable client if single-tenant credentials were configured.
@@ -47,7 +53,7 @@ public static class ServiceCollectionExtensions
         {
             var opts = sp.GetRequiredService<IOptions<EudiploClientOptions>>().Value;
             var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient(EudiploApiClient.HttpClientName);
-            return new EudiploApiClient(http, opts.ClientId ?? "", opts.ClientSecret ?? "");
+            return new EudiploApiClient(http, opts.ClientId ?? "", opts.ClientSecret ?? "", TimeSpan.FromSeconds(opts.HttpTimeoutSeconds));
         });
 
         return services;

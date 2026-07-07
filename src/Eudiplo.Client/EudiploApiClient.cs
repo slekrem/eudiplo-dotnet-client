@@ -16,8 +16,15 @@ namespace Eudiplo.Client;
 /// Implements <see cref="IDisposable"/> only to release the internal token-refresh lock —
 /// the <see cref="HttpClient"/> passed to the constructor is owned by the caller (typically
 /// <see cref="IHttpClientFactory"/>) and is never disposed here.
+///
+/// The <see cref="HttpClient"/> itself is expected to have an effectively infinite
+/// <see cref="HttpClient.Timeout"/> (this is how <c>AddEudiploClient</c> configures the named
+/// client) — every regular request is instead bounded by <paramref name="requestTimeout"/>,
+/// applied per call in <see cref="SendWithAuthAsync"/>. <see cref="SubscribeToSessionEventsAsync"/>
+/// deliberately does not go through that helper and so is unaffected by it, since an SSE
+/// subscription is expected to run far longer than a normal request/response round trip.
 /// </summary>
-public partial class EudiploApiClient(HttpClient http, string clientId, string clientSecret) : IDisposable
+public partial class EudiploApiClient(HttpClient http, string clientId, string clientSecret, TimeSpan? requestTimeout = null) : IDisposable
 {
     /// <summary>Name to use when registering the named <see cref="HttpClient"/> via
     /// <see cref="IHttpClientFactory"/> (see <c>AddEudiploClient</c>).</summary>
@@ -26,6 +33,12 @@ public partial class EudiploApiClient(HttpClient http, string clientId, string c
     private readonly HttpClient _http = http;
     private readonly string _clientId = clientId;
     private readonly string _clientSecret = clientSecret;
+
+    /// <summary>Per-call timeout applied in <see cref="SendWithAuthAsync"/>. Default matches
+    /// <see cref="EudiploClientOptions.HttpTimeoutSeconds"/>'s own default (15s) for
+    /// consumers who construct <see cref="EudiploApiClient"/> directly instead of through
+    /// <c>AddEudiploClient</c> (e.g. this library's own multi-tenant samples).</summary>
+    private readonly TimeSpan _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(15);
 
     private string? _token;
     private DateTime _tokenExpiresAt = DateTime.MinValue;
@@ -73,22 +86,32 @@ public partial class EudiploApiClient(HttpClient http, string clientId, string c
     /// (e.g. after secret rotation) and the request is retried.
     /// <paramref name="build"/> must construct a fresh request on every call — an
     /// <see cref="HttpRequestMessage"/> (and its content) cannot be reused after being sent.
+    ///
+    /// Applies <see cref="_requestTimeout"/> via a linked <see cref="CancellationTokenSource"/>
+    /// rather than relying on <see cref="HttpClient.Timeout"/> — the latter is expected to be
+    /// infinite on <see cref="_http"/> (see the class doc comment), since it would otherwise
+    /// also bound <see cref="SubscribeToSessionEventsAsync"/>'s long-lived stream reads, which
+    /// don't go through this helper.
     /// </summary>
     private async Task<HttpResponseMessage> SendWithAuthAsync(Func<HttpRequestMessage> build, CancellationToken ct)
     {
-        var token = await GetTokenAsync(ct);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(_requestTimeout);
+        var timeoutCt = cts.Token;
+
+        var token = await GetTokenAsync(timeoutCt);
         var req = build();
         req.Headers.Authorization = new("Bearer", token);
-        var resp = await _http.SendAsync(req, ct);
+        var resp = await _http.SendAsync(req, timeoutCt);
 
         if (resp.StatusCode == HttpStatusCode.Unauthorized)
         {
             resp.Dispose();
             InvalidateToken();
-            token = await GetTokenAsync(ct);
+            token = await GetTokenAsync(timeoutCt);
             req = build();
             req.Headers.Authorization = new("Bearer", token);
-            resp = await _http.SendAsync(req, ct);
+            resp = await _http.SendAsync(req, timeoutCt);
         }
         return resp;
     }

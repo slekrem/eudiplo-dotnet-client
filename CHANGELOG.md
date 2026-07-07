@@ -61,3 +61,17 @@ releases may contain breaking changes as the API settles.
   a real SSE-consuming backend against a live server; the existing unit test only checked
   the request path, not the auth mechanism, so it couldn't have caught this. Both the
   client and its test are fixed now.
+- `SubscribeToSessionEventsAsync`'s stream reads were bound by the shared `HttpClient`'s
+  `Timeout` (`EudiploClientOptions.HttpTimeoutSeconds`, 15s by default) — `HttpClient.Timeout`
+  covers the *entire* request, including reads on the response stream long after `SendAsync`
+  returns with `ResponseHeadersRead`, not just until headers arrive. A real subscription
+  waiting on a human to unlock their wallet, pick a credential, and confirm disclosure
+  routinely takes longer than that, so every real-world subscription was getting silently
+  killed (`HttpIOException: The response ended prematurely`) before the interesting event
+  ever arrived. Found by driving the actual access-control sample against a real EUDI Wallet
+  over a real network. Fixed by moving timeout enforcement from the `HttpClient` level
+  (now configured with an infinite `Timeout`) to a per-call `CancellationTokenSource` in
+  `SendWithAuthAsync` instead — `SubscribeToSessionEventsAsync` simply doesn't use that
+  helper, so it's unaffected. `EudiploApiClient`'s constructor gained an optional
+  `TimeSpan? requestTimeout` parameter for this (defaults to 15s to match the previous
+  behavior for direct, non-DI construction).

@@ -140,4 +140,35 @@ public class EudiploApiClientSessionTests
             await foreach (var _ in client.SubscribeToSessionEventsAsync("missing")) { }
         });
     }
+
+    [Fact]
+    public async Task GetSessionsAsync_SlowerThanRequestTimeout_ThrowsOperationCancelled()
+    {
+        // Establishes the baseline this pair of tests is contrasting: a regular call IS
+        // bound by the configured per-call timeout.
+        var (client, handler) = TestClientFactory.Create(requestTimeout: TimeSpan.FromMilliseconds(50));
+        handler.EnqueueToken();
+        handler.EnqueueDelayed(TimeSpan.FromMilliseconds(500), HttpStatusCode.OK, "[]");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.GetSessionsAsync());
+    }
+
+    [Fact]
+    public async Task SubscribeToSessionEventsAsync_SlowerThanRequestTimeout_StillYieldsEvents()
+    {
+        // The whole reason SubscribeToSessionEventsAsync bypasses SendWithAuthAsync: a real
+        // subscription waits on a human (unlock wallet, pick credential, confirm disclosure)
+        // far longer than a normal request/response round trip. Same short requestTimeout as
+        // above, but the events response itself (not the token) is what's slow here — and
+        // unlike GetSessionsAsync above, this must NOT be cancelled by it.
+        var (client, handler) = TestClientFactory.Create(requestTimeout: TimeSpan.FromMilliseconds(50));
+        handler.EnqueueToken();
+        handler.EnqueueDelayed(TimeSpan.FromMilliseconds(500), HttpStatusCode.OK, "data: {\"status\":\"completed\"}\n\n");
+
+        var events = new List<string>();
+        await foreach (var e in client.SubscribeToSessionEventsAsync("s1"))
+            events.Add(e);
+
+        Assert.Equal(["{\"status\":\"completed\"}"], events);
+    }
 }

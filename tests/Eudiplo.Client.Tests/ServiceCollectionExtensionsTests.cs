@@ -22,7 +22,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEudiploClient_ConfiguresNamedHttpClientBaseAddressAndTimeout()
+    public void AddEudiploClient_ConfiguresNamedHttpClientBaseAddressAndInfiniteTimeout()
     {
         var services = new ServiceCollection();
         services.AddEudiploClient(o =>
@@ -35,7 +35,10 @@ public class ServiceCollectionExtensionsTests
         var http = provider.GetRequiredService<IHttpClientFactory>().CreateClient(EudiploApiClient.HttpClientName);
 
         Assert.Equal(new Uri("https://eudiplo.example.com"), http.BaseAddress);
-        Assert.Equal(TimeSpan.FromSeconds(42), http.Timeout);
+        // Deliberately infinite regardless of HttpTimeoutSeconds — EudiploApiClient enforces
+        // that per call itself instead, so SubscribeToSessionEventsAsync's long-lived stream
+        // reads can be exempted from it (see EudiploApiClient's class doc comment).
+        Assert.Equal(Timeout.InfiniteTimeSpan, http.Timeout);
     }
 
     [Fact]

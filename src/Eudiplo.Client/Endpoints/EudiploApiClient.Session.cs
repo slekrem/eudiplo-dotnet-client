@@ -58,10 +58,25 @@ public partial class EudiploApiClient
     /// parameter (documented reason: browsers' <c>EventSource</c> API can't send custom
     /// headers, so this had to be made query-string-based to be directly usable from a
     /// frontend). Sending it as a header instead gets a 401.
+    ///
+    /// Also unlike every other endpoint, this bypasses <see cref="SendWithAuthAsync"/>'s
+    /// per-call timeout entirely and calls <c>_http</c> directly with only the caller's
+    /// <paramref name="ct"/> — an SSE subscription is expected to run far longer than a
+    /// normal request/response round trip (waiting on a human to unlock their wallet, pick
+    /// a credential, and confirm disclosure easily takes longer than a few seconds), so
+    /// applying the same short per-call timeout used everywhere else would abort the stream
+    /// on nearly every real use before anything interesting happens.
     /// </summary>
     public async IAsyncEnumerable<string> SubscribeToSessionEventsAsync(string id, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var token = await GetTokenAsync(ct);
+        // Fetching the token itself is a normal short request — bound it like everywhere
+        // else. Only the streaming read below is deliberately left unbounded.
+        string token;
+        using (var tokenCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            tokenCts.CancelAfter(_requestTimeout);
+            token = await GetTokenAsync(tokenCts.Token);
+        }
         using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/session/{id}/events?token={Uri.EscapeDataString(token)}");
 
         using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);

@@ -10,7 +10,9 @@ public class EudiploClientOptions
     /// <summary>Base URL of your EUDIPLO instance (e.g. <c>https://eudiplo.example.com</c>).</summary>
     public string? BaseUrl { get; set; }
 
-    /// <summary>HTTP request timeout in seconds. Default: 15.</summary>
+    /// <summary>Per-request timeout in seconds, applied to every call except
+    /// <see cref="EudiploApiClient.SubscribeToSessionEventsAsync"/> (an SSE subscription is
+    /// expected to run far longer than a normal request/response round trip). Default: 15.</summary>
     public int HttpTimeoutSeconds { get; set; } = 15;
 
     /// <summary>

@@ -7,5 +7,6 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Eudiplo.Client.Sample/Eudiplo.Client.Sample.csproj" />
+    <Project Path="samples/Eudiplo.Client.Sample.AccessControl/Eudiplo.Client.Sample.AccessControl.csproj" />
   </Folder>
 </Solution>

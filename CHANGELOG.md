@@ -26,7 +26,13 @@ releases may contain breaking changes as the API settles.
 - `samples/Eudiplo.Client.Sample` — a runnable console sample against a **real** EUDIPLO
   instance (via a provided `docker-compose.yml`, minimal/SQLite profile), demonstrating the
   multi-tenant flow: authenticate as the root client, create an isolated tenant, then use
-  that tenant's auto-generated admin client to create a key-chain.
+  that tenant's auto-generated admin client to create a key-chain. The shared
+  `docker-compose.yml` also starts EUDIPLO's own admin UI (`localhost:4200`).
+- `samples/Eudiplo.Client.Sample.AccessControl` — the "Access Control System" pattern from
+  EUDIPLO's own architecture diagram: a gate that opens an age-over-18 presentation request
+  and polls for the verified result, printing ACCESS GRANTED/DENIED. Uncovered a real,
+  previously-undocumented requirement while building it: a tenant needs an access
+  key-chain before it can create a presentation offer, or EUDIPLO returns 404.
 
 ### Changed
 - Repository restructured per current .NET OSS conventions: `Endpoints/` subfolder for the

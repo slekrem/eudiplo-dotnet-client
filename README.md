@@ -1,5 +1,8 @@
 # Eudiplo.Client
 
+[![CI](https://github.com/slekrem/eudiplo-dotnet-client/actions/workflows/ci.yml/badge.svg)](https://github.com/slekrem/eudiplo-dotnet-client/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 An **unofficial** .NET client for [EUDIPLO](https://github.com/openwallet-foundation-labs/eudiplo) — the
 OpenWallet Foundation's middleware for backend integration with EUDI Wallets (OpenID4VCI /
 OpenID4VP). There is currently no official .NET SDK for EUDIPLO's HTTP API; this project fills

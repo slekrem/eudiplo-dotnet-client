@@ -1,7 +1,3 @@
-using System.Net;
-using System.Text;
-using System.Text.Json;
-
 namespace Eudiplo.Client;
 
 /// <summary>
@@ -16,19 +12,23 @@ namespace Eudiplo.Client;
 /// <c>.TrustList.cs</c>, <c>.KeyChain.cs</c>, <c>.SchemaMetadata.cs</c>, <c>.Registrar.cs</c>,
 /// <c>.Issuer.cs</c>, <c>.Client.cs</c>, <c>.Tenant.cs</c>) — one object, one <see cref="HttpClient"/>,
 /// one token cache per relying party, but navigable by EUDIPLO API area.
+///
+/// Implements <see cref="IDisposable"/> only to release the internal token-refresh lock —
+/// the <see cref="HttpClient"/> passed to the constructor is owned by the caller (typically
+/// <see cref="IHttpClientFactory"/>) and is never disposed here.
 /// </summary>
-public partial class EudiploApiClient(HttpClient http, string clientId, string clientSecret)
+public partial class EudiploApiClient(HttpClient http, string clientId, string clientSecret) : IDisposable
 {
     /// <summary>Name to use when registering the named <see cref="HttpClient"/> via
     /// <see cref="IHttpClientFactory"/> (see <c>AddEudiploClient</c>).</summary>
     public const string HttpClientName = "EudiploClient";
 
-    private readonly HttpClient _http   = http;
-    private readonly string _clientId   = clientId;
+    private readonly HttpClient _http = http;
+    private readonly string _clientId = clientId;
     private readonly string _clientSecret = clientSecret;
 
-    private string?   _token;
-    private DateTime  _tokenExpiresAt = DateTime.MinValue;
+    private string? _token;
+    private DateTime _tokenExpiresAt = DateTime.MinValue;
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
     private async Task<string> GetTokenAsync(CancellationToken ct)
@@ -44,8 +44,8 @@ public partial class EudiploApiClient(HttpClient http, string clientId, string c
 
             var body = JsonSerializer.Serialize(new
             {
-                grant_type    = "client_credentials",
-                client_id     = _clientId,
+                grant_type = "client_credentials",
+                client_id = _clientId,
                 client_secret = _clientSecret,
             });
             using var content = new StringContent(body, Encoding.UTF8, "application/json");
@@ -77,7 +77,7 @@ public partial class EudiploApiClient(HttpClient http, string clientId, string c
     private async Task<HttpResponseMessage> SendWithAuthAsync(Func<HttpRequestMessage> build, CancellationToken ct)
     {
         var token = await GetTokenAsync(ct);
-        var req   = build();
+        var req = build();
         req.Headers.Authorization = new("Bearer", token);
         var resp = await _http.SendAsync(req, ct);
 
@@ -86,7 +86,7 @@ public partial class EudiploApiClient(HttpClient http, string clientId, string c
             resp.Dispose();
             InvalidateToken();
             token = await GetTokenAsync(ct);
-            req   = build();
+            req = build();
             req.Headers.Authorization = new("Bearer", token);
             resp = await _http.SendAsync(req, ct);
         }
@@ -106,5 +106,14 @@ public partial class EudiploApiClient(HttpClient http, string clientId, string c
         var list = new List<JsonElement>();
         foreach (var e in arr.EnumerateArray()) list.Add(e.Clone());
         return list;
+    }
+
+    /// <summary>Releases the internal token-refresh lock. Does not dispose the
+    /// <see cref="HttpClient"/> passed to the constructor — that remains the caller's
+    /// responsibility.</summary>
+    public void Dispose()
+    {
+        _tokenLock.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

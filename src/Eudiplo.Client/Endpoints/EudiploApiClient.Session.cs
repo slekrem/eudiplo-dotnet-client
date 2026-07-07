@@ -52,12 +52,17 @@ public partial class EudiploApiClient
     /// token expires mid-stream, the enumeration throws and the caller should re-subscribe.
     /// Yields the raw payload of each "data:" line as it arrives; enumeration ends when the
     /// server closes the connection or <paramref name="ct"/> is cancelled.
+    ///
+    /// Unlike every other endpoint, this one does NOT accept the token via the
+    /// <c>Authorization</c> header — EUDIPLO's SSE controller only checks a <c>token</c> query
+    /// parameter (documented reason: browsers' <c>EventSource</c> API can't send custom
+    /// headers, so this had to be made query-string-based to be directly usable from a
+    /// frontend). Sending it as a header instead gets a 401.
     /// </summary>
     public async IAsyncEnumerable<string> SubscribeToSessionEventsAsync(string id, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var token = await GetTokenAsync(ct);
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/session/{id}/events");
-        req.Headers.Authorization = new("Bearer", token);
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/session/{id}/events?token={Uri.EscapeDataString(token)}");
 
         using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!resp.IsSuccessStatusCode)

@@ -29,10 +29,14 @@ releases may contain breaking changes as the API settles.
   that tenant's auto-generated admin client to create a key-chain. The shared
   `docker-compose.yml` also starts EUDIPLO's own admin UI (`localhost:4200`).
 - `samples/Eudiplo.Client.Sample.AccessControl` — the "Access Control System" pattern from
-  EUDIPLO's own architecture diagram: a gate that opens an age-over-18 presentation request
-  and polls for the verified result, printing ACCESS GRANTED/DENIED. Uncovered a real,
-  previously-undocumented requirement while building it: a tenant needs an access
-  key-chain before it can create a presentation offer, or EUDIPLO returns 404.
+  EUDIPLO's own architecture diagram, now built as three real tiers: a Lit 3 + TypeScript
+  UI (`Frontend/`) talks only to an ASP.NET Core backend (`Backend/`), which is the only
+  piece using `Eudiplo.Client`. The backend provisions its gate tenant once at startup
+  (not per-request), opens an age-over-18 presentation request, and streams the verified
+  result to the browser via Server-Sent Events (`SubscribeToSessionEventsAsync`) instead
+  of polling. Uncovered a real, previously-undocumented requirement while first building
+  this as a console sample: a tenant needs an access key-chain before it can create a
+  presentation offer, or EUDIPLO returns 404.
 
 ### Changed
 - Repository restructured per current .NET OSS conventions: `Endpoints/` subfolder for the
@@ -46,3 +50,10 @@ releases may contain breaking changes as the API settles.
   (`"standalone"` / `"internalChain"`), not a cryptographic algorithm — found by running
   the new sample against a real EUDIPLO instance, which rejected the previously-undocumented
   assumption immediately.
+- `SubscribeToSessionEventsAsync` sent the access token via the `Authorization` header and
+  got a 401 from EUDIPLO's session-events endpoint — that endpoint only accepts the token
+  via a `?token=` query parameter (browsers' `EventSource` can't send custom headers, so
+  EUDIPLO's SSE controller was built to check the query string instead). Found by building
+  a real SSE-consuming backend against a live server; the existing unit test only checked
+  the request path, not the auth mechanism, so it couldn't have caught this. Both the
+  client and its test are fixed now.

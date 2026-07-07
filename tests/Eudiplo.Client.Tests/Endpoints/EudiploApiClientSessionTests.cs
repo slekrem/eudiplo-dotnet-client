@@ -109,6 +109,9 @@ public class EudiploApiClientSessionTests
 
         Assert.Equal(["{\"status\":\"pending\"}", "{\"status\":\"issued\"}"], events);
         Assert.Equal("/api/session/s1/events", handler.Requests[1].RequestUri!.AbsolutePath);
+        // EUDIPLO's SSE controller only accepts the token via query string (browsers'
+        // EventSource can't send custom headers) — an Authorization header is not enough.
+        Assert.Equal("?token=test-token", handler.Requests[1].RequestUri!.Query);
     }
 
     [Fact]

@@ -33,8 +33,13 @@ releases may contain breaking changes as the API settles.
   UI (`Frontend/`) talks only to an ASP.NET Core backend (`Backend/`), which is the only
   piece using `Eudiplo.Client`. The backend provisions its gate tenant once at startup
   (not per-request), opens a presentation request, and streams the verified result to the
-  browser via Server-Sent Events (`SubscribeToSessionEventsAsync`) instead of polling.
-  Uncovered a real, previously-undocumented requirement while first building this as a
+  browser via Server-Sent Events (`SubscribeToSessionEventsAsync`), backed by a plain
+  polling fallback for when a real phone's browser silently drops that connection (see
+  Fixed, below). Also supports pointing at an already-provisioned tenant
+  (`GATE_CLIENT_ID`/`GATE_CLIENT_SECRET`) instead of always creating an ephemeral one, so
+  it can drive a tenant with a real registrar-issued certificate without deleting and
+  recreating it on every restart. Uncovered a real, previously-undocumented requirement
+  while first building this as a
   console sample: a tenant needs an access key-chain before it can create a presentation
   offer, or EUDIPLO returns 404. Verified against a **real EUDI Wallet holding a real
   German PID** (via `EudiploApiClient.Registrar.cs`'s fully-API-driven registrar
@@ -75,3 +80,13 @@ releases may contain breaking changes as the API settles.
   helper, so it's unaffected. `EudiploApiClient`'s constructor gained an optional
   `TimeSpan? requestTimeout` parameter for this (defaults to 15s to match the previous
   behavior for direct, non-DI construction).
+- Even with the fix above, the access-control sample's *browser → backend* SSE connection
+  could still go silently dead on a real phone: backgrounding the tab to unlock the wallet
+  app and confirm disclosure can make mobile browsers drop a backgrounded tab's connections
+  without ever firing `EventSource.onerror` (the page's JS itself can be paused, not just
+  the connection). A `visibilitychange`-triggered resubscribe helped but wasn't fully
+  reliable in practice. Fixed in the sample by adding a plain 3-second poll
+  (`GET /api/gate/sessions/{id}`, a new endpoint) alongside the SSE subscription — it only
+  depends on browser timers resuming once the tab is foregrounded again, not on any
+  particular connection surviving backgrounding. Verified against a real phone browser
+  going through the full backgrounding round-trip.

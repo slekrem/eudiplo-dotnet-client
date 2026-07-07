@@ -31,41 +31,44 @@ using Eudiplo.Client;
 var services = new ServiceCollection();
 services.AddEudiploClient(options =>
 {
-    options.EudiploBaseUrl = "https://your-eudiplo-instance.example.com";
-    options.RootClientId = "...";
-    options.RootClientSecret = "...";
+    options.BaseUrl = "https://your-eudiplo-instance.example.com";
+    options.ClientId = "...";
+    options.ClientSecret = "...";
 });
 ```
 
-Or bind from configuration (`appsettings.json`):
+Or bind from configuration (`appsettings.json`, section name `"Eudiplo"`):
 
 ```json
 {
   "Eudiplo": {
-    "EudiploBaseUrl": "https://your-eudiplo-instance.example.com",
-    "RootClientId": "...",
-    "RootClientSecret": "..."
+    "BaseUrl": "https://your-eudiplo-instance.example.com",
+    "ClientId": "...",
+    "ClientSecret": "..."
   }
 }
 ```
 
 ```csharp
-services.AddEudiploClient(configuration.GetSection("Eudiplo"));
+services.AddEudiploClient(configuration);
 ```
+
+A working, runnable example (against a real EUDIPLO instance in Docker, not a mock) is in
+[`samples/Eudiplo.Client.Sample`](samples/Eudiplo.Client.Sample).
 
 ## What's covered
 
-Client-credentials OAuth2 auth (with token caching + 401-retry) plus typed wrappers for:
+Client-credentials OAuth2 auth (with token caching + 401-retry) plus nearly the entire
+EUDIPLO backend-management API: tenants, OAuth2 clients, human users, key-chains (incl. KMS
+provider config), issuer configuration (credential configs, attribute providers, webhook
+endpoints, issuance config), issuance offers and deferred-credential completion, trust lists
+(incl. version history), registrar integration, schema metadata (incl. full
+versioning/cataloging), sessions (incl. Server-Sent Events for live status), status lists,
+cache administration, generic file storage, audit log, and verifier/presentation configs.
 
-- Presentation offers & session polling (`/api/verifier/offer`, `/api/session/{id}`)
-- Issuer credential configs & offers (`/api/issuer/*`)
-- OAuth2 client management (`/api/client/*`)
-- Tenant management (`/api/tenant/*`, requires a root client)
-- Verifier configs (`/api/verifier/config/*`)
-- Trust lists (`/api/trust-list/*`)
-- Key chains (`/api/key-chain/*`)
-- Registrar integration (`/api/registrar/*`)
-- Schema metadata signing (`/api/schema-metadata/sign`)
+Deliberately **not** covered: the wallet-facing OID4VCI/OID4VP protocol endpoints
+(`.well-known/*`, `/authorize`, `/credential`, etc.) — an EUDI Wallet calls those directly;
+a backend integration never does, so they don't belong in a management-API client.
 
 ## Origin
 

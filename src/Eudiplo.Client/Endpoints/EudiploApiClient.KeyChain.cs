@@ -29,6 +29,12 @@ public partial class EudiploApiClient
     /// Creates a key-chain (EUDIPLO generates the key pair). Returns the raw JSON body of the
     /// created resource (including its id), or throws on failure.
     /// </summary>
+    /// <param name="usageType">e.g. "access", "attestation" — the key-chain's purpose.</param>
+    /// <param name="type">Key-chain topology, one of EUDIPLO's <c>KeyChainType</c> enum values:
+    /// <c>"standalone"</c> (single key, self-signed certificate) or <c>"internalChain"</c>
+    /// (internal CA + signing key, CA-signed certificate). Not a cryptographic algorithm.</param>
+    /// <param name="description">Optional human-readable description.</param>
+    /// <param name="ct"></param>
     public async Task<string> CreateKeyChainAsync(string usageType, string type, string? description, CancellationToken ct = default)
     {
         var body = JsonSerializer.Serialize(new { usageType, type, description });

@@ -32,11 +32,15 @@ releases may contain breaking changes as the API settles.
   EUDIPLO's own architecture diagram, now built as three real tiers: a Lit 3 + TypeScript
   UI (`Frontend/`) talks only to an ASP.NET Core backend (`Backend/`), which is the only
   piece using `Eudiplo.Client`. The backend provisions its gate tenant once at startup
-  (not per-request), opens an age-over-18 presentation request, and streams the verified
-  result to the browser via Server-Sent Events (`SubscribeToSessionEventsAsync`) instead
-  of polling. Uncovered a real, previously-undocumented requirement while first building
-  this as a console sample: a tenant needs an access key-chain before it can create a
-  presentation offer, or EUDIPLO returns 404.
+  (not per-request), opens a presentation request, and streams the verified result to the
+  browser via Server-Sent Events (`SubscribeToSessionEventsAsync`) instead of polling.
+  Uncovered a real, previously-undocumented requirement while first building this as a
+  console sample: a tenant needs an access key-chain before it can create a presentation
+  offer, or EUDIPLO returns 404. Verified against a **real EUDI Wallet holding a real
+  German PID** (via `EudiploApiClient.Registrar.cs`'s fully-API-driven registrar
+  enrollment — no manual dashboard cert-request flow needed) — this surfaced that the
+  real DE-PID has no `age_over_18`/`age_equal_or_over` claim, only `birthdate`; the sample
+  now requests that and checks the 18-year threshold itself, server-side.
 
 ### Changed
 - Repository restructured per current .NET OSS conventions: `Endpoints/` subfolder for the

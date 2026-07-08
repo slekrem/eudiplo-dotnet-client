@@ -7,6 +7,8 @@ releases may contain breaking changes as the API settles.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-08
+
 ### Added
 - `EudiploApiClient` — HTTP client covering nearly the entire EUDIPLO backend-management
   API surface: OAuth2 client-credentials auth (with token caching and 401-retry), tenants,

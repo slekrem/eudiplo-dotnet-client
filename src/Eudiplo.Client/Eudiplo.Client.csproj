@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <Version>0.1.0</Version>
     <PackageId>Eudiplo.Client</PackageId>
     <Description>Unofficial .NET HTTP client for EUDIPLO (openwallet-foundation-labs/eudiplo) — the EUDI Wallet issuer/verifier middleware. No official SDK exists for EUDIPLO; this fills that gap.</Description>
     <Authors>slekrem</Authors>

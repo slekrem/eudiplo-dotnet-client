@@ -5,8 +5,4 @@
   <Folder Name="/tests/">
     <Project Path="tests/Eudiplo.Client.Tests/Eudiplo.Client.Tests.csproj" />
   </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/Eudiplo.Client.Sample/Eudiplo.Client.Sample.csproj" />
-    <Project Path="samples/Eudiplo.Client.Sample.AccessControl/Backend/Eudiplo.Client.Sample.AccessControl.Backend.csproj" />
-  </Folder>
 </Solution>

@@ -53,8 +53,9 @@ Or bind from configuration (`appsettings.json`, section name `"Eudiplo"`):
 services.AddEudiploClient(configuration);
 ```
 
-A working, runnable example (against a real EUDIPLO instance in Docker, not a mock) is in
-[`samples/Eudiplo.Client.Sample`](samples/Eudiplo.Client.Sample).
+Working, runnable examples (against a real EUDIPLO instance in Docker, not a mock) live in
+[`eudiplo-dotnet-client-samples`](https://github.com/slekrem/eudiplo-dotnet-client-samples),
+referencing this package from NuGet.
 
 ## What's covered
 

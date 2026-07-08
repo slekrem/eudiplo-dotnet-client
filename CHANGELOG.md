@@ -7,6 +7,12 @@ releases may contain breaking changes as the API settles.
 
 ## [Unreleased]
 
+### Changed
+- Samples moved to their own repository,
+  [`eudiplo-dotnet-client-samples`](https://github.com/slekrem/eudiplo-dotnet-client-samples)
+  (history preserved via `git filter-repo`), now referencing this package from NuGet
+  instead of a `ProjectReference` into this repo's source.
+
 ## [0.1.0] - 2026-07-08
 
 ### Added
